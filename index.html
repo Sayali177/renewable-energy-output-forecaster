@@ -1,0 +1,892 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Energy Synthesis — Dashboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Serif+Display&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --orange: #e8830a;
+    --orange-dark: #b85f04;
+    --orange-deep: #7a3a00;
+    --orange-light: #faebd0;
+    --amber: #f5c030;
+    --brown: #5a2800;
+    --brown-mid: #7a4a1a;
+    --brown-light: #8a5a2a;
+    --brown-muted: #8a6a3a;
+    --green: #3a8010;
+    --green-dark: #2a5a08;
+    --red: #d04020;
+    --blue: #1a60b0;
+    --blue-dark: #0a4080;
+    --surface: rgba(255,255,255,0.72);
+    --surface-strong: rgba(255,255,255,0.88);
+    --border: rgba(139,90,43,0.13);
+    --border-mid: rgba(139,90,43,0.22);
+    --radius-sm: 8px;
+    --radius-md: 12px;
+    --radius-lg: 16px;
+  }
+
+  html, body {
+    height: 100%;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 14px;
+    color: var(--brown);
+    background: #e8e0d0;
+    overflow: hidden;
+  }
+
+  /* ─── Background ─────────────────────────────────── */
+  .bg-scene {
+    position: fixed; inset: 0; z-index: 0;
+    background: linear-gradient(160deg, #d8e8c8 0%, #e8d8b8 40%, #f0c870 70%, #d89050 100%);
+  }
+  .bg-scene::after {
+    content: '';
+    position: absolute; inset: 0;
+    background: radial-gradient(ellipse 80% 60% at 60% 80%, rgba(255,180,60,0.35) 0%, transparent 70%),
+                radial-gradient(ellipse 40% 40% at 20% 20%, rgba(180,220,120,0.25) 0%, transparent 60%);
+  }
+
+  /* ─── Shell ──────────────────────────────────────── */
+  .shell {
+    position: relative; z-index: 1;
+    display: flex; height: 100vh;
+  }
+
+  /* ─── Sidebar ─────────────────────────────────────── */
+  .sidebar {
+    width: 210px; flex-shrink: 0;
+    background: rgba(255,255,255,0.55);
+    backdrop-filter: blur(20px);
+    border-right: 0.5px solid var(--border-mid);
+    display: flex; flex-direction: column;
+    padding: 0;
+  }
+
+  .sidebar-logo {
+    padding: 20px 18px 18px;
+    border-bottom: 0.5px solid var(--border);
+  }
+  .logo-row { display: flex; align-items: center; gap: 10px; }
+  .logo-icon {
+    width: 34px; height: 34px;
+    background: var(--orange);
+    border-radius: 9px;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+  }
+  .logo-icon svg { width: 17px; height: 17px; fill: white; }
+  .logo-text-name { font-size: 13px; font-weight: 600; color: var(--brown); letter-spacing: -0.01em; }
+  .logo-text-sub { font-size: 9.5px; color: var(--orange-dark); letter-spacing: 0.08em; text-transform: uppercase; margin-top: 1px; }
+
+  .sidebar-nav { padding: 12px 0; flex: 1; }
+  .nav-item {
+    display: flex; align-items: center; gap: 10px;
+    padding: 10px 18px;
+    font-size: 12px; font-weight: 500;
+    color: var(--brown-mid);
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s;
+    letter-spacing: 0.01em;
+  }
+  .nav-item svg { width: 15px; height: 15px; flex-shrink: 0; opacity: 0.7; }
+  .nav-item:hover { background: rgba(232,131,10,0.08); color: var(--brown); }
+  .nav-item.active {
+    background: rgba(232,131,10,0.14);
+    color: var(--brown);
+  }
+  .nav-item.active svg { opacity: 1; }
+
+  .sidebar-footer {
+    padding: 14px 18px;
+    border-top: 0.5px solid var(--border);
+  }
+  .sidebar-footer-label { font-size: 10px; color: var(--brown-muted); text-transform: uppercase; letter-spacing: 0.07em; margin-bottom: 6px; }
+  .sidebar-status { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--green); font-weight: 500; }
+  .status-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--green); animation: pulse 2s infinite; }
+  @keyframes pulse { 0%,100%{opacity:1;} 50%{opacity:0.4;} }
+
+  /* ─── Main ────────────────────────────────────────── */
+  .main { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+
+  .topbar {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 0 28px;
+    height: 52px; flex-shrink: 0;
+    background: rgba(255,255,255,0.45);
+    backdrop-filter: blur(16px);
+    border-bottom: 0.5px solid var(--border);
+  }
+  .topbar-brand {
+    font-family: 'DM Serif Display', serif;
+    font-size: 17px; color: var(--brown);
+    letter-spacing: -0.01em;
+  }
+  .tabs { display: flex; gap: 2px; }
+  .tab {
+    padding: 6px 16px;
+    font-size: 13px; font-weight: 400;
+    color: var(--brown-mid);
+    background: none; border: none;
+    cursor: pointer;
+    border-radius: 6px;
+    transition: all 0.15s;
+    position: relative;
+    font-family: 'DM Sans', sans-serif;
+  }
+  .tab:hover { background: rgba(232,131,10,0.08); color: var(--brown); }
+  .tab.active {
+    color: var(--brown);
+    font-weight: 500;
+  }
+  .tab.active::after {
+    content: '';
+    position: absolute; bottom: -1px; left: 50%; transform: translateX(-50%);
+    width: 60%; height: 2px;
+    background: var(--orange);
+    border-radius: 2px 2px 0 0;
+  }
+  .tab-badge {
+    display: inline-flex; align-items: center; justify-content: center;
+    background: var(--red); color: white;
+    font-size: 9px; font-weight: 600;
+    width: 15px; height: 15px;
+    border-radius: 50%;
+    margin-left: 5px; vertical-align: middle;
+  }
+  .topbar-actions { display: flex; align-items: center; gap: 14px; }
+  .topbar-actions svg { width: 17px; height: 17px; cursor: pointer; opacity: 0.6; transition: opacity 0.15s; }
+  .topbar-actions svg:hover { opacity: 1; }
+
+  /* ─── Content ─────────────────────────────────────── */
+  .content { flex: 1; overflow-y: auto; padding: 22px 28px 28px; }
+  .content::-webkit-scrollbar { width: 4px; }
+  .content::-webkit-scrollbar-track { background: transparent; }
+  .content::-webkit-scrollbar-thumb { background: rgba(139,90,43,0.2); border-radius: 2px; }
+
+  .panel { display: none; animation: fadeIn 0.2s ease; }
+  .panel.active { display: block; }
+  @keyframes fadeIn { from{opacity:0;transform:translateY(4px);} to{opacity:1;transform:none;} }
+
+  /* ─── Panel Header ─────────────────────────────────── */
+  .panel-header { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 18px; }
+  .panel-title {
+    font-family: 'DM Serif Display', serif;
+    font-size: 30px; color: var(--brown);
+    letter-spacing: -0.02em; line-height: 1.1;
+  }
+  .panel-sub { font-size: 12px; color: var(--brown-light); margin-top: 3px; }
+  .header-badges { display: flex; gap: 7px; align-items: center; flex-shrink: 0; margin-top: 4px; }
+
+  /* ─── Badges ──────────────────────────────────────── */
+  .badge {
+    display: inline-flex; align-items: center;
+    padding: 3px 10px; border-radius: 20px;
+    font-size: 11px; font-weight: 500; letter-spacing: 0.01em;
+  }
+  .badge-green { background: #c8e8a0; color: #2a5a08; }
+  .badge-amber { background: #fde8a0; color: #7a4000; }
+  .badge-red { background: #fdd0c8; color: #7a2010; }
+  .badge-blue { background: #c0d8f4; color: #0a3870; }
+  .badge-gray { background: rgba(139,90,43,0.1); color: var(--brown-mid); }
+
+  /* ─── Cards ───────────────────────────────────────── */
+  .card {
+    background: var(--surface);
+    backdrop-filter: blur(12px);
+    border-radius: var(--radius-lg);
+    border: 0.5px solid var(--border);
+    padding: 16px 18px;
+    transition: transform 0.2s;
+  }
+  .card:hover { transform: translateY(-2px); }
+  .card-label {
+    font-size: 10px; color: var(--brown-muted);
+    letter-spacing: 0.07em; text-transform: uppercase;
+    margin-bottom: 5px;
+  }
+  .card-big { font-size: 30px; font-weight: 600; color: var(--brown); line-height: 1; }
+  .card-unit { font-size: 15px; font-weight: 400; color: var(--brown-light); margin-left: 3px; }
+  .card-sub { font-size: 11px; color: var(--brown-light); margin-top: 6px; }
+
+  /* ─── Grid layouts ─────────────────────────────────── */
+  .g2 { display: grid; grid-template-columns: 1fr 1fr; gap: 13px; }
+  .g3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 13px; }
+  .g4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+  .mt3 { margin-top: 13px; }
+  .mt4 { margin-top: 16px; }
+  .col2 { grid-column: span 2; }
+  .col3 { grid-column: span 3; }
+
+  /* ─── Chart wrapper ────────────────────────────────── */
+  .chart-wrap { position: relative; width: 100%; transition: opacity 0.3s; }
+
+  /* ─── Progress bar ─────────────────────────────────── */
+  .prog-track { height: 5px; background: rgba(139,90,43,0.1); border-radius: 3px; overflow: hidden; margin-top: 8px; }
+  .prog-fill { height: 100%; border-radius: 3px; transition: width 0.8s ease; }
+
+  /* ─── Flex utils ───────────────────────────────────── */
+  .fb { display: flex; align-items: center; justify-content: space-between; }
+  .fg { display: flex; align-items: center; gap: 8px; }
+
+  /* ─── Card titles ──────────────────────────────────── */
+  .card-title { font-size: 13px; font-weight: 500; color: var(--brown); margin-bottom: 13px; }
+
+  /* ─── Alert items ──────────────────────────────────── */
+  .alert-list { display: flex; flex-direction: column; gap: 9px; }
+  .alert-row {
+    display: flex; align-items: flex-start; gap: 11px;
+    padding: 12px 14px; border-radius: 10px;
+  }
+  .alert-row.critical { background: rgba(208,64,32,0.08); border: 0.5px solid rgba(208,64,32,0.18); }
+  .alert-row.warning  { background: rgba(192,128,0,0.07); border: 0.5px solid rgba(192,128,0,0.18); }
+  .alert-row.info     { background: rgba(26,96,176,0.07); border: 0.5px solid rgba(26,96,176,0.15); }
+  .alert-row.success  { background: rgba(58,128,16,0.07); border: 0.5px solid rgba(58,128,16,0.15); }
+  .alert-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; margin-top: 4px; }
+  .dot-red   { background: var(--red); }
+  .dot-amber { background: #c08000; }
+  .dot-blue  { background: var(--blue); }
+  .dot-green { background: var(--green); }
+  .alert-body { flex: 1; min-width: 0; }
+  .alert-title-text { font-size: 12px; font-weight: 500; color: var(--brown); margin-bottom: 3px; }
+  .alert-desc { font-size: 11px; color: var(--brown-light); line-height: 1.55; }
+  .alert-meta { font-size: 10px; color: var(--brown-muted); margin-top: 4px; }
+
+  /* ─── Severity cards ───────────────────────────────── */
+  .sev-card {
+    border-radius: var(--radius-md);
+    padding: 14px 16px;
+    background: var(--surface);
+    border: 0.5px solid var(--border);
+    border-left-width: 3px;
+  }
+  .sev-num { font-size: 28px; font-weight: 600; line-height: 1; margin-top: 4px; }
+
+  /* ─── Forecast weather ─────────────────────────────── */
+  .wx-row {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 8px 0;
+  }
+  .wx-row + .wx-row { border-top: 0.5px solid var(--border); }
+  .wx-day { font-size: 10px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--brown-muted); margin-bottom: 3px; }
+  .wx-icon { font-size: 18px; }
+  .wx-mwh { font-size: 14px; font-weight: 500; color: var(--brown); text-align: right; }
+  .wx-detail { font-size: 10px; color: var(--brown-light); text-align: right; margin-top: 1px; }
+
+  /* ─── Legend ───────────────────────────────────────── */
+  .legend { display: flex; flex-wrap: wrap; gap: 12px; font-size: 11px; color: var(--brown-light); margin-top: 10px; }
+  .legend-item { display: flex; align-items: center; gap: 5px; }
+  .legend-swatch { width: 10px; height: 10px; border-radius: 2px; flex-shrink: 0; }
+
+  /* ─── Divider ──────────────────────────────────────── */
+  hr.sec { border: none; border-top: 0.5px solid var(--border); margin: 14px 0; }
+
+  /* ─── Overview panel specific ──────────────────────── */
+  .ov-hero {
+    background: var(--surface-strong);
+    backdrop-filter: blur(16px);
+    border-radius: var(--radius-lg);
+    border: 0.5px solid var(--border);
+    padding: 20px 22px;
+    margin-bottom: 13px;
+    transition: transform 0.2s;
+  }
+  .ov-hero:hover { transform: translateY(-2px); }
+  .ov-hero-title {
+    font-family: 'DM Serif Display', serif;
+    font-size: 26px; color: var(--brown);
+    margin-bottom: 2px;
+  }
+  .ov-hero-sub { font-size: 12px; color: var(--brown-light); margin-bottom: 16px; }
+
+  /* Toast Notification Styles */
+  #toast-container {
+      position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
+      z-index: 999; display: flex; flex-direction: column; gap: 10px;
+      pointer-events: none;
+  }
+  .toast {
+      background: rgba(90,40,0,0.9);
+      color: white; padding: 10px 20px; border-radius: 20px;
+      font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+      transition: all 0.3s ease; opacity: 1; transform: translateY(20px);
+      display: flex; align-items: center; gap: 8px; pointer-events: auto;
+  }
+  .toast.hidden-toast { opacity: 0; transform: translateY(20px); }
+</style>
+</head>
+<body>
+
+<div class="bg-scene"></div>
+<div id="toast-container"></div>
+
+<div class="shell">
+
+  <!-- ── Sidebar ── -->
+  <aside class="sidebar">
+    <div class="sidebar-logo">
+      <div class="logo-row">
+        <div class="logo-icon">
+          <svg viewBox="0 0 24 24"><path d="M13 2L4.5 13.5H11L10 22L19.5 10.5H13L13 2Z"/></svg>
+        </div>
+        <div>
+          <div class="logo-text-name">Energy Station</div>
+          <div class="logo-text-sub">Luminous Ecology</div>
+        </div>
+      </div>
+    </div>
+
+    <nav class="sidebar-nav">
+      <div class="nav-item active" onclick="setNav(this, 'solar')">
+        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M3 3h8v8H3zm10 0h8v8h-8zM3 13h8v8H3zm10 0h8v8h-8z"/></svg>
+        Energy Grid
+      </div>
+      <div class="nav-item" onclick="setNav(this, 'wind')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M2 12h2M20 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
+        Weather (Wind)
+      </div>
+      <div class="nav-item" onclick="setNav(this, 'storage')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="4" y="6" width="16" height="14" rx="2"/><path d="M16 2v4M8 2v4"/></svg>
+        Storage
+      </div>
+      <div class="nav-item" onclick="setNav(this, 'eco')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 0c0 5.52-3.58 10-8 10"/></svg>
+        Eco-Impact
+      </div>
+    </nav>
+
+    <div class="sidebar-footer">
+      <div class="sidebar-footer-label">System Status</div>
+      <div class="sidebar-status"><span class="status-dot"></span>High performance active</div>
+    </div>
+  </aside>
+
+  <!-- ── Main ── -->
+  <div class="main">
+    <header class="topbar">
+      <div class="topbar-brand">Energy Synthesis</div>
+      <div class="tabs">
+        <button class="tab active" onclick="switchTab('overview',this)">Overview</button>
+        <button class="tab" onclick="switchTab('forecast',this)">Forecast</button>
+        <button class="tab" onclick="switchTab('analytics',this)">Analytics</button>
+        <button class="tab" onclick="switchTab('alerts',this)">Alerts<span class="tab-badge" id="nav-badge-alerts">0</span></button>
+      </div>
+      <div class="topbar-actions">
+        <!-- Re-added Search Bar -->
+        <div style="display:flex; align-items:center; background:rgba(255,255,255,0.6); border-radius:20px; padding:6px 12px; border:0.5px solid var(--border);">
+            <svg style="width:14px;height:14px;opacity:0.6;margin-right:6px;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+            <input type="text" id="city-search" placeholder="Search city..." onkeydown="handleSearch(event)" style="border:none;background:transparent;outline:none;font-size:12px;width:120px;font-family:'DM Sans';color:var(--brown);">
+        </div>
+        <svg viewBox="0 0 24 24" fill="none" stroke="#7a4a1a" stroke-width="1.6" onclick="showToast('Notifications synchronized')"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
+        <svg viewBox="0 0 24 24" fill="none" stroke="#7a4a1a" stroke-width="1.6" onclick="showToast('Profile sync disabled in read-only view')"><circle cx="12" cy="12" r="3"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
+      </div>
+    </header>
+
+    <div class="content">
+
+      <!-- ════════════════ OVERVIEW ════════════════ -->
+      <div id="panel-overview" class="panel active">
+        <div class="panel-header">
+          <div>
+            <div class="panel-title">Predictive Synthesis</div>
+            <div class="panel-sub" id="status-text">System status: Loading optimization data...</div>
+          </div>
+          <div class="header-badges"><span class="badge badge-green" id="vs-yesterday">Loading...</span></div>
+        </div>
+
+        <div class="ov-hero">
+          <div class="fb" style="margin-bottom:10px;">
+            <div>
+              <div class="card-label" id="ov-hero-label">Total Output Forecast</div>
+              <div class="card-big"><span id="total-output">--.-</span><span class="card-unit" id="ov-hero-unit">MWh</span></div>
+            </div>
+            <button class="badge badge-gray" style="cursor:pointer;border:none;" onclick="showToast('Executing pure Physics simulation route!'); reloadData();">Optimize Route</button>
+          </div>
+          <div class="chart-wrap" style="height:200px;">
+            <canvas id="ovBarChart" role="img" aria-label="Today's hourly solar output forecast">Peak output between 12:00 and 15:00.</canvas>
+          </div>
+        </div>
+
+        <div class="g4">
+          <div class="card">
+            <div class="fg">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#e8830a" stroke-width="1.8" id="icon-humidity"><path d="M12 2a7 7 0 0 0-7 7c0 3 1.5 5.5 4 7v2h6v-2c2.5-1.5 4-4 4-7a7 7 0 0 0-7-7z"/><path d="M9 21h6"/></svg>
+                <div class="card-label" style="margin:0;" id="label-humidity">Humidity</div>
+            </div>
+            <div class="card-big" style="margin-top:6px;"><span id="humidity-val">--</span><span class="card-unit" id="unit-humidity">%</span></div>
+            <div class="card-sub" id="humidity-sub">Analyzing...</div>
+          </div>
+          <div class="card">
+            <div class="fg">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#e8830a" stroke-width="1.8" id="icon-wind"><path d="M3 8h12a4 4 0 0 1 0 8H3"/><path d="M3 12h10"/></svg>
+                <div class="card-label" style="margin:0;" id="label-wind">Wind Speed</div>
+            </div>
+            <div class="card-big" style="margin-top:6px;"><span id="wind-val">--.-</span><span class="card-unit" id="unit-wind">km/h</span></div>
+            <div class="card-sub" id="wind-sub">Analyzing...</div>
+          </div>
+          <div class="card">
+            <div class="fg"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#e8830a" stroke-width="1.8"><path d="M14 14.76V3.5a2.5 2.5 0 0 0-5 0v11.26a4.5 4.5 0 1 0 5 0z"/></svg><div class="card-label" style="margin:0;">Temperature</div></div>
+            <div class="card-big" style="margin-top:6px;"><span id="temp-val">--</span><span class="card-unit">°C</span></div>
+            <div class="card-sub" id="temp-sub">Analyzing...</div>
+          </div>
+          <div class="card">
+            <div class="fb">
+              <div class="card-label">Active Sector</div>
+              <span class="badge badge-green" style="font-size:9px;padding:2px 7px;">Sector 7B — Active</span>
+            </div>
+            <div style="margin-top:8px;background:rgba(139,90,43,0.08);border-radius:8px;padding:8px;text-align:center;">
+              <div style="font-size:11px;color:var(--brown-muted);font-weight:500;" id="sect-coords">LAT: -- N &nbsp;·&nbsp; LONG: -- E</div>
+              <div style="font-size:10px;color:var(--brown-light);margin-top:4px;" id="sect-name">Localizing Node...</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ════════════════ FORECAST ════════════════ -->
+      <div id="panel-forecast" class="panel">
+        <div class="panel-header">
+          <div>
+            <div class="panel-title">72-Hour Forecast</div>
+            <div class="panel-sub">Ensemble predictive output model</div>
+          </div>
+          <div class="header-badges">
+            <span class="badge badge-gray" id="fc-confidence">Calculating confidence...</span>
+          </div>
+        </div>
+
+        <div class="g4">
+          <div class="card">
+            <div class="card-label">Peak Forecast</div>
+            <div class="card-big"><span id="fc-peak-mwh">--.-</span><span class="card-unit">MW</span></div>
+            <div class="card-sub" id="fc-peak-time">Processing...</div>
+          </div>
+          <div class="card">
+            <div class="card-label">Tomorrow (24H)</div>
+            <div class="card-big"><span id="forecast-24">--</span><span class="card-unit">MWh</span></div>
+            <div class="card-sub">Base Load Profile</div>
+          </div>
+          <div class="card">
+            <div class="card-label">Day 2 (48H)</div>
+            <div class="card-big"><span id="forecast-48">--</span><span class="card-unit">MWh</span></div>
+            <div class="card-sub">Forward Projection</div>
+          </div>
+          <div class="card">
+            <div class="card-label">Day 3 (72H)</div>
+            <div class="card-big"><span id="forecast-72">--</span><span class="card-unit">MWh</span></div>
+            <div class="card-sub">Horizon Tail</div>
+          </div>
+        </div>
+
+        <div class="card mt3">
+          <div class="fb" style="margin-bottom:13px;">
+            <div class="card-title" style="margin:0;">Hourly Output Forecast — MWh</div>
+            <div class="legend">
+              <span class="legend-item"><span class="legend-swatch" style="background:#e8830a;"></span>Solar</span>
+              <span class="legend-item"><span class="legend-swatch" style="background:#f5c030;"></span>Wind</span>
+            </div>
+          </div>
+          <div class="chart-wrap" style="height:210px;">
+            <canvas id="fcHourlyChartAll" role="img" aria-label="72-hour stacked solar and wind energy output forecast"></canvas>
+          </div>
+        </div>
+      </div>
+
+      <!-- ════════════════ ANALYTICS ════════════════ -->
+      <div id="panel-analytics" class="panel">
+        <div class="panel-header">
+          <div>
+            <div class="panel-title">Analytics</div>
+            <div class="panel-sub">Performance deep-dive limits</div>
+          </div>
+          <div class="header-badges"><span class="badge badge-green">System healthy</span></div>
+        </div>
+
+        <div class="g4">
+          <div class="card">
+            <div class="card-label">Capacity Factor</div>
+            <div class="card-big"><span id="an-cf">--</span><span class="card-unit" style="font-size:12px;">%</span></div>
+            <div class="prog-track"><div class="prog-fill" id="an-cf-bar" style="width:0%;background:var(--orange);"></div></div>
+            <div class="card-sub">Theoretical Limit vs Output</div>
+          </div>
+          <div class="card">
+            <div class="card-label">Efficiency Rate</div>
+            <div class="card-big">85<span class="card-unit">%</span></div>
+            <div class="prog-track"><div class="prog-fill" style="width:85%;background:var(--green);"></div></div>
+            <div class="card-sub">Physics Conversion Factor</div>
+          </div>
+          <div class="card">
+            <div class="card-label">Ensemble Lower</div>
+            <div class="card-big"><span id="an-lb">--</span><span class="card-unit" style="font-size:12px;">MWh</span></div>
+            <div class="card-sub">Variance Bounds (P10)</div>
+          </div>
+          <div class="card">
+            <div class="card-label">Ensemble Upper</div>
+            <div class="card-big"><span id="an-ub">--</span><span class="card-unit" style="font-size:12px;">MWh</span></div>
+            <div class="card-sub">Variance Bounds (P90)</div>
+          </div>
+        </div>
+
+        <div class="g2 mt3">
+          <div class="card">
+            <div class="card-title">Ensemble Model Accuracy Trajectory</div>
+            <div class="chart-wrap" style="height:200px;">
+              <canvas id="anAccuracyChart" role="img" aria-label="Line chart comparing actual vs forecasted output">Simulation Loading.</canvas>
+            </div>
+            <div class="legend" style="margin-top:12px;display:flex;justify-content:center;">
+              <span class="legend-item"><span class="legend-swatch" style="background:#e8830a;"></span>Physics Logic</span>
+              <span class="legend-item"><span class="legend-swatch" style="background:#1a60b0;border:1px dashed #1a60b0;background:transparent;"></span>Synthetic ML</span>
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-title">Generation Source Sector Weights</div>
+            <div class="chart-wrap" style="height:170px;">
+              <canvas id="anSectorChart" role="img" aria-label="Donut chart showing energy output breakdown by sector">Sector Breakdown.</canvas>
+            </div>
+            <div class="legend" style="margin-top:12px;display:flex;justify-content:center;gap:12px;">
+              <span class="legend-item"><span class="legend-swatch" style="background:#e8830a;"></span>Physics 70%</span>
+              <span class="legend-item"><span class="legend-swatch" style="background:#f5c030;"></span>XGBoost 20%</span>
+              <span class="legend-item"><span class="legend-swatch" style="background:#a0c840;"></span>Prophet 10%</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ════════════════ ALERTS ════════════════ -->
+      <div id="panel-alerts" class="panel">
+        <div class="panel-header">
+          <div>
+            <div class="panel-title">Alerts</div>
+            <div class="panel-sub">Real-time system telemetry check · Live WebSocket Sync</div>
+          </div>
+          <div class="header-badges">
+            <span class="badge badge-gray" id="alert-badge-count">Scanner initializing...</span>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="fb" style="margin-bottom:13px;">
+            <div class="card-title" style="margin:0;">Active Telemetry Feed</div>
+          </div>
+          <div class="alert-list" id="alerts-container">
+            <div style="text-align:center;padding:20px;color:gray;">Awaiting connection...</div>
+          </div>
+        </div>
+      </div>
+
+    </div><!-- /content -->
+  </div><!-- /main -->
+</div><!-- /shell -->
+
+<script>
+/* ── Global App State ── */
+const API = 'http://localhost:8000';
+let energyType = 'solar'; // API target
+let viewMode = 'solar'; // UI visualization mode
+let currentCityQuery = '';
+let lastMWhBase = 142.8;
+let lastForecastData = null; // Store entire response to redraw charts
+
+/* ── DOM & View switching ── */
+function switchTab(id, el) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  el.classList.add('active');
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  document.getElementById('panel-' + id).classList.add('active');
+}
+
+function setNav(el, mode) {
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  el.classList.add('active');
+  viewMode = mode;
+  if(mode === 'solar') energyType = 'solar';
+  if(mode === 'wind') energyType = 'wind';
+  showToast(`${mode.toUpperCase()} VIEW ACTIVATED`);
+  
+  if (lastForecastData) {
+      applyViewModeData(lastForecastData);
+  } else {
+      reloadData();
+  }
+}
+
+function showToast(msg) {
+    const container = document.getElementById('toast-container');
+    const toast = document.createElement('div');
+    toast.className = 'toast hidden-toast';
+    toast.innerHTML = `<svg style="width:16px;height:16px;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg> ${msg}`;
+    container.appendChild(toast);
+    setTimeout(() => toast.classList.remove('hidden-toast'), 10);
+    setTimeout(() => {
+        toast.classList.add('hidden-toast');
+        setTimeout(() => toast.remove(), 300);
+    }, 2500);
+}
+
+function handleSearch(event) {
+    if (event.key === 'Enter') {
+        const val = document.getElementById('city-search').value.trim();
+        if (val) {
+            currentCityQuery = val;
+            showToast(`Triangulating grid data for ${val}...`);
+            reloadData();
+        }
+    }
+}
+
+/* ── Chart Instances (Global References) ── */
+let ovBarChart, fcHourlyChartAll, anAccuracyChart, anSectorChart;
+var baseGrid = { color: 'rgba(139,90,43,0.08)' };
+var baseTick = { color: '#8a6a3a', font: { size: 10, family: "'DM Sans', sans-serif" } };
+
+function initCharts() {
+    // 1. Overview 16-bar Chart
+    ovBarChart = new Chart(document.getElementById('ovBarChart'), {
+      type: 'bar',
+      data: { labels: [], datasets: [{ label: 'MWh', data: [], backgroundColor: '#e8830a', borderRadius: 5 }] },
+      options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } },
+                 scales: { x: { grid: { display: false }, ticks: baseTick }, y: { grid: baseGrid, ticks: baseTick } } }
+    });
+
+    // 2. Forecast Hourly Stacked Chart (72h)
+    fcHourlyChartAll = new Chart(document.getElementById('fcHourlyChartAll'), {
+      type: 'bar',
+      data: { labels: [], datasets: [{ label: 'Prediction', data: [], backgroundColor: '#f5c030', borderRadius: 4 }] },
+      options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } },
+                 scales: { x: { grid: { display: false }, ticks: baseTick }, y: { grid: baseGrid, ticks: baseTick } } }
+    });
+
+    // 3. Analytics Charts
+    anAccuracyChart = new Chart(document.getElementById('anAccuracyChart'), {
+      type: 'line',
+      data: { labels: [], datasets: [
+          { label: 'Physics', data: [], borderColor: '#e8830a', backgroundColor: 'rgba(232,131,10,0.1)', fill: true, tension: 0.4 },
+          { label: 'ML', data: [], borderColor: '#1a60b0', borderDash: [5,4], fill: false, tension: 0.4 }
+      ]},
+      options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } },
+                 scales: { x: { grid: { display: false }, ticks: baseTick }, y: { grid: baseGrid, ticks: baseTick } } }
+    });
+
+    anSectorChart = new Chart(document.getElementById('anSectorChart'), {
+      type: 'doughnut',
+      data: { labels: ['Physics Weight','XGBoost Weight','Prophet Weight'], datasets: [{ data: [70,20,10], backgroundColor: ['#e8830a','#f5c030','#a0c840'], borderWidth: 0 }] },
+      options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, cutout: '65%' }
+    });
+}
+
+
+/* ── Async Data Fetch Pipeline ── */
+async function reloadData() {
+    document.getElementById('status-text').textContent = "Establishing uplink...";
+    
+    try {
+        // Fetch Weather
+        let weatherUrl = `${API}/api/weather/current`;
+        if (currentCityQuery) weatherUrl += `?city=${encodeURIComponent(currentCityQuery)}`;
+        else weatherUrl += `?latitude=19.0760&longitude=72.8777`;
+        const weatherRes = await fetch(weatherUrl);
+        const weatherData = await weatherRes.json();
+
+        // Safe extraction
+        const lat = weatherData.resolved_location ? weatherData.resolved_location.latitude : 19.0760;
+        const lon = weatherData.resolved_location ? weatherData.resolved_location.longitude : 72.8777;
+        const name = weatherData.resolved_location ? weatherData.resolved_location.name : 'Sector Core';
+
+        // Fetch Forecast
+        document.getElementById('status-text').textContent = "Running physics ensemble...";
+        const forecastRes = await fetch(`${API}/api/forecast/${energyType}`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                location: {latitude: lat, longitude: lon, name: name},
+                horizon_hours: 72,
+                model: 'ensemble' // Using our heavily weighted Physics model
+            })
+        });
+        const forecastData = await forecastRes.json();
+        lastForecastData = forecastData; // cache
+
+        // Update Base UI (Weather/Map)
+        document.getElementById('temp-val').textContent = Math.round(weatherData.temperature_c || 24);
+        document.getElementById('sect-coords').textContent = `LAT: ${lat.toFixed(4)}° N · LONG: ${Math.abs(lon).toFixed(4)}° ${(lon>=0)?'E':'W'}`;
+        document.getElementById('sect-name').textContent = `Localizing grid to ${name}`;
+        
+        // Alert Pipeline
+        processAlerts(weatherData);
+
+        // Apply View Mode formatting to the Data
+        applyViewModeData(forecastData, weatherData);
+        
+        document.getElementById('status-text').textContent = "High performance simulation active.";
+        document.getElementById('status-text').style.color = "var(--green)";
+
+    } catch(err) {
+        console.error("API error", err);
+        document.getElementById('status-text').textContent = "Connection Failure. Displaying Cache.";
+        document.getElementById('status-text').style.color = "var(--red)";
+    }
+}
+
+function processAlerts(weather) {
+    const alertsBox = document.getElementById('alerts-container');
+    alertsBox.innerHTML = '';
+    
+    let count = 0;
+    const addAlert = (type, title, desc, col) => {
+        count++;
+        alertsBox.innerHTML += `<div class="alert-row ${type}"><div class="alert-dot dot-${col}"></div><div class="alert-body"><div class="fb"><div class="alert-title-text">${title}</div></div><div class="alert-desc">${desc}</div></div></div>`;
+    };
+
+    if (weather.wind_speed_ms > 20)      addAlert('critical', 'Critical Wind Threshold Exceeded', 'Turbine automatic cut-out imminent to prevent structural stress limits.', 'red');
+    else if (weather.wind_speed_ms > 10) addAlert('warning', 'High Wind Sustained', 'Capacity approaching optimal Betz limit.', 'amber');
+
+    if (weather.temperature_c > 35)      addAlert('critical', 'Extreme Thermal Load', 'Photovoltaic efficiency degradation crossing -5% coefficient baseline.', 'red');
+    else if (weather.cloud_cover_pct > 80) addAlert('warning', 'Severe Cloud Coverage', 'Irradiance yielding effectively near 0 W/m² baseline.', 'amber');
+
+    if (count === 0) {
+        addAlert('success', 'Clear Operating Horizon', 'No environmental or structural anomalies recorded.', 'green');
+    }
+    
+    document.getElementById('nav-badge-alerts').textContent = count;
+    document.getElementById('alert-badge-count').textContent = `${count} active feeds`;
+    document.getElementById('alert-badge-count').className = (count>1 && weather.temperature_c > 35) ? 'badge badge-red' : 'badge badge-green';
+}
+
+function applyViewModeData(data, wData = null) {
+    lastMWhBase = (data.summary.total_energy_kwh / 1000);
+    let displayVal = lastMWhBase;
+    let unit = "MWh";
+    let title = "Total Output Forecast";
+
+    // Dynamic State Overrides
+    if (viewMode === 'storage') {
+        displayVal = lastMWhBase * 0.20;
+        unit = "MWh RSV";
+        title = "Battery Draw Allocation";
+        
+        document.getElementById('label-humidity').textContent = 'Charge Temp';
+        document.getElementById('unit-humidity').textContent = '°C';
+        document.getElementById('humidity-sub').textContent = 'Battery Banks A-C';
+        
+        document.getElementById('label-wind').textContent = 'Grid Draw';
+        document.getElementById('unit-wind').textContent = 'MW';
+        document.getElementById('wind-sub').textContent = 'Discharge Rate';
+    } 
+    else if (viewMode === 'eco') {
+        displayVal = lastMWhBase * 0.4;
+        unit = "tCO₂";
+        title = "Carbon Footprint Offset";
+        
+        document.getElementById('label-humidity').textContent = 'Trees Saved';
+        document.getElementById('unit-humidity').textContent = '';
+        document.getElementById('humidity-sub').textContent = 'Equivalent Planted';
+        
+        document.getElementById('label-wind').textContent = 'Cars Benched';
+        document.getElementById('unit-wind').textContent = '';
+        document.getElementById('wind-sub').textContent = 'Annual Baseline';
+    } 
+    else {
+        // Restore standard Overrides
+        document.getElementById('label-humidity').textContent = 'Humidity';
+        document.getElementById('unit-humidity').textContent = '%';
+        document.getElementById('label-wind').textContent = 'Wind Speed';
+        document.getElementById('unit-wind').textContent = 'km/h';
+    }
+
+    // Assign text to DOM
+    document.getElementById('ov-hero-label').textContent = title;
+    document.getElementById('ov-hero-unit').textContent = unit;
+    
+    // Fake counting animation
+    let start = 0; const duration = 800; const sT = performance.now();
+    const anim = (cT) => {
+        let p = Math.min((cT - sT) / duration, 1);
+        document.getElementById('total-output').textContent = (displayVal * (1 - Math.pow(1 - p, 4))).toFixed(1);
+        if(p < 1) requestAnimationFrame(anim);
+    }
+    requestAnimationFrame(anim);
+
+    // Weather tweaks if full data was passed
+    if (wData) {
+        if(viewMode === 'eco') {
+            document.getElementById('humidity-val').textContent = Math.round(displayVal * 45);
+            document.getElementById('wind-val').textContent = Math.round(displayVal * 0.21);
+            document.getElementById('vs-yesterday').textContent = `+${Math.round(displayVal * 0.3)}% CO2 saved vs last year`;
+        } else if (viewMode === 'storage') {
+            document.getElementById('humidity-val').textContent = "38";
+            document.getElementById('wind-val').textContent = "12.4";
+            document.getElementById('vs-yesterday').textContent = `Max Capacity Reached`;
+        } else {
+            document.getElementById('humidity-val').textContent = Math.round(wData.humidity_pct || 40);
+            document.getElementById('humidity-sub').textContent = wData.humidity_pct > 60 ? "Heavy Moisture" : "Stable Aridity";
+            document.getElementById('wind-val').textContent = ((wData.wind_speed_ms||0) * 3.6).toFixed(1);
+            document.getElementById('wind-sub').textContent = "Surface Tracking";
+            document.getElementById('vs-yesterday').textContent = `Tracking ${viewMode}`;
+        }
+    }
+
+    // Daily buckets for Forecast Panel
+    let d1=0, d2=0, d3=0;
+    data.hourly.forEach((h, i) => { const kwh = h.energy_kwh; if(i<24)d1+=kwh; else if(i<48)d2+=kwh; else d3+=kwh; });
+    document.getElementById('forecast-24').textContent = (d1/1000).toFixed(1);
+    document.getElementById('forecast-48').textContent = (d2/1000).toFixed(1);
+    document.getElementById('forecast-72').textContent = (d3/1000).toFixed(1);
+    document.getElementById('fc-peak-mwh').textContent = (data.summary.peak_power_kw / 1000).toFixed(2);
+    const pDate = new Date(data.summary.peak_hour);
+    document.getElementById('fc-peak-time').textContent = `Estimated at ${pDate.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}`;
+    document.getElementById('fc-confidence').textContent = "System 94% Confident";
+
+    // Analytics Panel
+    document.getElementById('an-cf').textContent = (data.summary.capacity_factor * 100).toFixed(1);
+    document.getElementById('an-cf-bar').style.width = `${(data.summary.capacity_factor * 100).toFixed(1)}%`;
+    let lb=0, ub=0;
+    data.hourly.forEach((h) => { lb += h.energy_kwh_lower||0; ub += h.energy_kwh_upper||0; });
+    document.getElementById('an-lb').textContent = (lb/1000).toFixed(1);
+    document.getElementById('an-ub').textContent = (ub/1000).toFixed(1);
+
+    // Apply Chart Updates!
+    if (ovBarChart && fcHourlyChartAll && anAccuracyChart) {
+        // Limit to 12 bars for visual clarity in Overview
+        const step = Math.ceil(data.hourly.length / 12);
+        const slimLabels = []; const slimVals = [];
+        for (let i=0; i<data.hourly.length; i+=step) {
+            slimLabels.push(new Date(data.hourly[i].timestamp).toLocaleTimeString([], {hour:'2-digit'}) + ':00');
+            slimVals.push(data.hourly[i].energy_kwh/1000);
+        }
+        
+        ovBarChart.data.labels = slimLabels;
+        ovBarChart.data.datasets[0].data = slimVals;
+        ovBarChart.data.datasets[0].backgroundColor = (viewMode==='wind') ? '#f5c030' : '#e8830a';
+        ovBarChart.update();
+
+        fcHourlyChartAll.data.labels = data.hourly.map((h,i) => i%4===0 ? (i+'h') : '');
+        fcHourlyChartAll.data.datasets[0].data = data.hourly.map(h => h.energy_kwh/1000);
+        fcHourlyChartAll.data.datasets[0].backgroundColor = (viewMode==='wind') ? '#f5c030' : '#e8830a';
+        fcHourlyChartAll.update();
+
+        // Accuracy mock trace (Phys vs ML bounds roughly mapped)
+        const fullLabels = data.hourly.map(h => new Date(h.timestamp).toLocaleTimeString([], {hour:'2-digit'}) + ':00');
+        const fullVals = data.hourly.map(h => h.energy_kwh/1000);
+        anAccuracyChart.data.labels = fullLabels;
+        anAccuracyChart.data.datasets[0].data = fullVals;
+        anAccuracyChart.data.datasets[1].data = fullVals.map(v => v * (1 + (Math.random()*0.1 - 0.05)));
+        anAccuracyChart.update();
+    }
+}
+
+window.addEventListener('load', () => {
+    initCharts();
+    reloadData();
+});
+
+</script>
+</body>
+</html>
